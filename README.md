@@ -17,8 +17,7 @@ a simple http routing API for the Go programming language
         params := r.URL.Query()
         lastName := params.Get(":last")
         firstName := params.Get(":first")
-        fmt.Fprintf(w, "your are %s %s", lastName)
-        fmt.Fprintf(w, "your are %s %s", firstName)
+        fmt.Fprintf(w, "your are %s %s", firstName, lastName)
     }
 
     func main() {
