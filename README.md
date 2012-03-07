@@ -37,6 +37,10 @@ You can create routes for all http methods:
     mux.Patch("/:param1", handler)
     mux.Del("/:param1", handler)
 
+You can specify custom regular expressions for routes:
+
+    mux.Get("/files/:path(.+)", handler)
+
 You can also create routes for static files:
 
     pwd, _ := os.Getwd()
