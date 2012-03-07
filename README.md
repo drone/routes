@@ -46,7 +46,21 @@ You can also create routes for static files:
 this will serve any files in `/static`, including files in subdirectories. For example `/static/logo.gif` or `/static/style/main.css`.
 
 ### Http HEAD
-If you define a GET method for a route the HEAD method is also enabled. The response body will be stripped, and the content-length will be set to zero.
+HEAD requests are automatically handled for GET routes. Assume we define the following route:
+
+    mux.Get("/home", handler)
+
+When the HTTP request is submitted:
+
+    HEAD /home HTTP/1.1
+
+The following response is created:
+
+    HTTP/1.1 200 OK
+	Content-Type: application/json
+    Content-Length: 217
+
+A HEAD request will behave the same as a GET request, and will invoke the `http.HandleFunc`, but will not return a message-body.
 
 ### Http OPTIONS
 OPTIONS requests are automatically handled. Assume we define the following routes:
@@ -54,11 +68,11 @@ OPTIONS requests are automatically handled. Assume we define the following route
     mux.Put("/home", handler)
     mux.Post("/home", handler)
 
-When the following HTTP request is submitted:
+When the HTTP request is submitted:
 
     OPTIONS /home HTTP/1.1
 
-It will return the following response:
+The following response is created:
 
     HTTP/1.1 200 OK
     Public: PUT, POST
@@ -93,24 +107,3 @@ Logging is enabled by default, but can be disabled:
 You can also specify your logger:
 
     mux.Logger = log.New(os.Stdout, "", 0)
-
-# LICENSE
-Copyright (c) 2012 Brad Rydzewski
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
