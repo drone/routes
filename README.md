@@ -54,19 +54,22 @@ You can use helper functions for serializing to Json and Xml. I found myself con
 Helper function for serving Json, sets content type to `application/json`:
 
     func handler(w http.ResponseWriter, r *http.Request) {
+		mystruct := { ... }
         routes.ServeJson(w, &mystruct)
     }
 
 Helper function for serving Xml, sets content type to `application/xml`:
 
     func handler(w http.ResponseWriter, r *http.Request) {
+		mystruct := { ... }
         routes.ServeXml(w, &mystruct)
     }
 
 Helper function to serve Xml OR Json, depending on the value of the `Accept` header:
 
     func handler(w http.ResponseWriter, r *http.Request) {
-        routes.ServeXml(w, &mystruct)
+		mystruct := { ... }
+        routes.ServeFormatted(w, r, &mystruct)
     }
 
 ## Logging
