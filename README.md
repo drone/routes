@@ -45,39 +45,6 @@ You can also create routes for static files:
 
 this will serve any files in `/static`, including files in subdirectories. For example `/static/logo.gif` or `/static/style/main.css`.
 
-### Http HEAD
-HEAD requests are automatically handled for GET routes. Assume we define the following route:
-
-    mux.Get("/home", handler)
-
-When the HTTP request is submitted:
-
-    HEAD /home HTTP/1.1
-
-The following response is created:
-
-    HTTP/1.1 200 OK
-	Content-Type: application/json
-    Content-Length: 217
-
-A HEAD request will behave the same as a GET request, and will invoke the `http.HandleFunc`, but will not return a message-body.
-
-### Http OPTIONS
-OPTIONS requests are automatically handled. Assume we define the following routes:
-
-    mux.Put("/home", handler)
-    mux.Post("/home", handler)
-
-When the HTTP request is submitted:
-
-    OPTIONS /home HTTP/1.1
-
-The following response is created:
-
-    HTTP/1.1 200 OK
-    Public: PUT, POST
-    Content-Length: 0
-
 ## Helper Functions
 You can use helper functions for serializing to Json and Xml. I found myself constantly writing code to serialize, set content type, content length, etc. Feel free to use these functions to eliminate boilerplate code in your app.
 
