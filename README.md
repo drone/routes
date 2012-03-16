@@ -97,6 +97,7 @@ If you plan to use the same `AuthHandler` to secure all of your routes, you may 
     mux.Get("/:param", handler).Secure()
     mux.Get("/:param", handler).Secure()
 
+### OAuth2
 In the above examples, we implemented our own custom `AuthHandler`. Check out the [auth.go](https://github.com/bradrydzewski/auth.go) API which provides custom AuthHandlers for OAuth2 providers such as Google and Github.
 
 ## Logging
