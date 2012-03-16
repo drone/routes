@@ -3,7 +3,6 @@ package routes
 import (
 	"encoding/json"
 	"encoding/xml"
-	"github.com/dchest/authcookie"
 	"log"
 	"net/http"
 	"net/url"
@@ -34,16 +33,7 @@ const (
 	applicationXml  = "applicatoin/xml"
 	textXml         = "text/xml"
 )
-
-/*var (
-	CookieSecret []byte
-	CookieName = "UID"
-	CookieExp = time.Hour * 24 * 14
-	CookieMaxAge = 0
-	LoginRedirect = "/login"
-	LoginSuccessRedirect = "/"
-)*/
-
+/*
 var Config = &RouteConfig{
 	CookieName : "UID",
 	CookieExp : time.Hour * 24 * 14,
@@ -59,7 +49,7 @@ type RouteConfig struct {
 	CookieMaxAge         int
 	LoginRedirect        string
 	LoginSuccessRedirect string
-}
+}*/
 
 type Route struct {
 	method  string
@@ -158,7 +148,7 @@ func (this *RouteMux) Post(pattern string, handler http.HandlerFunc) *Route {
 
 // Secures a route using the default AuthHandler
 func (this *Route) Secure() *Route {
-	this.auth = Authenticate
+	this.auth = DefaultAuthHandler
 	return this
 }
 
@@ -229,10 +219,8 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			//or already wrote a response, we can just exit
 			if w.started {
 				return
-			//or if the auth failed, we can redirect to a login url
-			} else if !ok {
-				http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
-				return
+			} else if ok == false {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			}
 		}
 
@@ -296,6 +284,22 @@ func (this *responseWriter) WriteHeader(code int) {
 
 
 // ---------------------------------------------------------------------------------
+// Authentication helper functions to enable user authentication
+
+type AuthHandler func (http.ResponseWriter, *http.Request) bool
+
+// DefaultAuthHandler will be applied to any route when the Secure() function
+// is invoked, as opposed to SecureFunc(), which accepts a custom AuthHandler.
+//
+// By default, the DefaultAuthHandler will deny all requests. This value
+// should be replaced with a custom AuthHandler implementation, as this
+// is just a dummy function.
+var DefaultAuthHandler = func(w http.ResponseWriter, r *http.Request) bool {
+	return false
+}
+
+
+// ---------------------------------------------------------------------------------
 // Below are helper functions to replace boilerplate
 // code that serializes resources and writes to the
 // http response.
@@ -346,13 +350,58 @@ func ServeFormatted(w http.ResponseWriter, r *http.Request, v interface{}) {
 
 
 // ---------------------------------------------------------------------------------
-// Authentication helper functions to enable user login,
-// secure cookies, etc
+// Authentication helper functions to enable user authentication
 
 type AuthHandler func (http.ResponseWriter, *http.Request) bool
 
-// Login will create a user's session using a secure cookie
-func Login(w http.ResponseWriter, r *http.Request, user string) {
+// DefaultAuthHandler will be applied to any route when the Secure() function
+// is invoked, as opposed to SecureFunc(), which accepts a custom AuthHandler.
+//
+// By default, the DefaultAuthHandler will deny all requests. This value
+// should be replaced with a custom AuthHandler implementation, as this
+// is just a dummy function.
+var DefaultAuthHandler = func(w http.ResponseWriter, r *http.Request) bool {
+	return false
+}
+
+/*
+// DefaultAuthHandler determines if a user has an active session, and if so,
+// adds the username to the URL. If there is no active user session,
+// the request is redirected to the Login page.
+var DefaultAuthHandler = func(w http.ResponseWriter, r *http.Request) bool {
+	//look for the authcookie
+    cookie, err := r.Cookie(Config.CookieName)
+
+	//if doesn't exist (or is malformed) redirect
+	//back to the login url
+	if err != nil {
+		http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
+		return
+	}
+
+    login, expires, err := authcookie.Parse(cookie.Value, Config.CookieSecret)
+
+	//if there was an error parsing the cookie, redirect
+	//back to the login url
+    if err != nil {
+		http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
+		return
+
+	//if the cookie is expired, redirect back to the
+	//login url
+    } else if time.Now().After(expires) {
+		http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
+		return
+    }
+
+	//add the userid to the url
+	r.URL.User = url.User(login)
+	return
+}
+
+// Login will create a user's session using a secure cookie, and
+// redirect back to the login url.
+func LoginUser(w http.ResponseWriter, r *http.Request, user string) {
 
 	// user id should not be null or blank
 	if user == "" {
@@ -385,42 +434,12 @@ func Login(w http.ResponseWriter, r *http.Request, user string) {
 }
 
 // Logout will terminate a user's session and redirect
-// to a login page.
-func Logout(w http.ResponseWriter, r *http.Request) {
+// to a login page, and redirect back to the login url.
+func LogoutUser(w http.ResponseWriter, r *http.Request) {
     cookie, err := r.Cookie(Config.CookieName)
 	if err == nil {
 		cookie.Value = "deleted"
     	http.SetCookie(w, cookie)
 		http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
 	}
-}
-
-// Authenticated determines if a user has an active session, and if so,
-// their username.
-func Authenticate(w http.ResponseWriter, r *http.Request) bool {
-	//look for the authcookie
-    cookie, err := r.Cookie("UID")
-
-	//if doesn't exist (or is malformed) redirect
-	//back to the login url
-	if err != nil {
-		return false
-	}
-
-    login, expires, err := authcookie.Parse(cookie.Value, Config.CookieSecret)
-
-	//if there was an error parsing the cookie, redirect
-	//back to the login url
-    if err != nil {
-		return false
-
-	//if the cookie is expired, redirect back to the
-	//login url
-    } else if time.Now().After(expires) {
-		return false
-    }
-
-	//add the userid to the url
-	r.URL.User = url.User(login)
-	return true
-}
+}*/
