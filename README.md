@@ -83,14 +83,13 @@ Here is an example using a custom `AuthHandler` per route. Image we are doing so
 	    user := r.URL.User.Username()
 	    password := r.URL.User.Password()
 	    if user != "xxx" && password != "xxx" {
+            // if we wanted, we could do an http.Redirect here
 		    return false
 	    }
 	    return true
     }
 
     mux.Get("/:param", handler).SecureFunc(authHandler)
-
-Note: You can also redirect from within an `AuthHandler`
 
 If you plan to use the same `AuthHandler` to secure all of your routes, you may want to set the `DefaultAuthHandler`:
 
