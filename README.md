@@ -33,15 +33,15 @@ this project combines the best of `web.go` and `pat.go`. It uses `pat.go`'s name
 ### Route Examples
 You can create routes for all http methods:
 
-    mux.Get("/:param1", handler)
-    mux.Put("/:param1", handler)
-    mux.Post("/:param1", handler)
-    mux.Patch("/:param1", handler)
-    mux.Del("/:param1", handler)
+    mux.Get("/:param", handler)
+    mux.Put("/:param", handler)
+    mux.Post("/:param", handler)
+    mux.Patch("/:param", handler)
+    mux.Del("/:param", handler)
 
 You can specify custom regular expressions for routes:
 
-    mux.Get("/files/:path(.+)", handler)
+    mux.Get("/files/:param(.+)", handler)
 
 You can also create routes for static files:
 

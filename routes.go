@@ -3,13 +3,13 @@ package routes
 import (
 	"encoding/json"
 	"encoding/xml"
+	"github.com/dchest/authcookie"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -35,16 +35,38 @@ const (
 	textXml         = "text/xml"
 )
 
+/*var (
+	CookieSecret []byte
+	CookieName = "UID"
+	CookieExp = time.Hour * 24 * 14
+	CookieMaxAge = 0
+	LoginRedirect = "/login"
+	LoginSuccessRedirect = "/"
+)*/
 
-var (
-	DefaultAccessControlOrigin = "*"
-)
+var Config = &RouteConfig{
+	CookieName : "UID",
+	CookieExp : time.Hour * 24 * 14,
+	CookieMaxAge : 0,
+	LoginRedirect : "/login",
+	LoginSuccessRedirect : "/",
+}
+
+type RouteConfig struct {
+	CookieSecret         []byte
+	CookieName           string
+	CookieExp            time.Duration
+	CookieMaxAge         int
+	LoginRedirect        string
+	LoginSuccessRedirect string
+}
 
 type Route struct {
 	method  string
 	regex   *regexp.Regexp
 	params  map[int]string
 	handler http.HandlerFunc
+	auth    AuthHandler
 }
 
 type RouteMux struct {
@@ -85,7 +107,7 @@ func (this *RouteMux) AddRoute(method string, pattern string, handler http.Handl
 		}
 	}
 
-	//recreate the pattern, with parameters replaced
+	//recreate the url pattern, with parameters replaced
 	//by regular expressions. then compile the regex
 	pattern = strings.Join(parts, "/")
 	regex, regexErr := regexp.Compile(pattern)
@@ -134,6 +156,18 @@ func (this *RouteMux) Post(pattern string, handler http.HandlerFunc) *Route {
 	return this.AddRoute(POST, pattern, handler)
 }
 
+// Secures a route using the default AuthHandler
+func (this *Route) Secure() *Route {
+	this.auth = Authenticate
+	return this
+}
+
+// SecureFunc a route using a custom AuthHandler function
+func (this *Route) SecureFunc(handler AuthHandler) *Route {
+	this.auth = handler
+	return this
+}
+
 // Adds a new Route for Static http requests. Serves
 // static files from the specified directory
 func (this *RouteMux) Static(pattern string, dir string) *Route {
@@ -157,21 +191,21 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	w := &responseWriter{writer: rw}
 
 	//find a matching Route
-	for _, Route := range this.routes {
+	for _, route := range this.routes {
 
 		//if the methods don't match, skip this handler
 		//i.e if request.Method is 'PUT' Route.Method must be 'PUT'
-		if r.Method != Route.method { // && !(r.Method == HEAD && Route.method == GET) {
+		if r.Method != route.method {
 			continue
 		}
 
 		//check if Route pattern matches url
-		if !Route.regex.MatchString(requestPath) {
+		if !route.regex.MatchString(requestPath) {
 			continue
 		}
 
 		//get submatches (params)
-		matches := Route.regex.FindStringSubmatch(requestPath)
+		matches := route.regex.FindStringSubmatch(requestPath)
 
 		//double check that the Route matches the URL pattern.
 		if len(matches[0]) != len(requestPath) {
@@ -181,21 +215,31 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		//add url parameters to the query param map
 		values := r.URL.Query()
 		for i, match := range matches[1:] {
-			values.Add(Route.params[i], match)
+			values.Add(route.params[i], match)
 		}
 
 		//reassemble query params and add to RawQuery
 		r.URL.RawQuery = url.Values(values).Encode()
 
+		//enfore security, if necessary
+		if route.auth != nil {
+			//autenticate the user
+			ok := route.auth(w, r)
+			//if the auth handler redirected the user
+			//or already wrote a response, we can just exit
+			if w.started {
+				return
+			//or if the auth failed, we can redirect to a login url
+			} else if !ok {
+				http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
+				return
+			}
+		}
+
 		//Invoke the request handler
-		Route.handler(w, r)
+		route.handler(w, r)
 
 		break
-	}
-
-	//was this an OPTIONS request?
-	if r.Method == OPTIONS {
-		this.optionsRequest(w, r)
 	}
 
 	//if no matches to url, throw a not found exception
@@ -211,48 +255,10 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Performs an HTTP OPTIONS request on the request
-// See http://ftp.ics.uci.edu/pub/ietf/http/draft-ietf-http-options-02.txt
-// Example Response:
-//    HTTP/1.1 200 OK
-//    Date: Tue, 22 Jul 1997 20:21:51 GMT
-//    Public: OPTIONS, GET, HEAD, PUT, POST, TRACE
-//    Content-Length: 0
-func (this *RouteMux) optionsRequest(w http.ResponseWriter, r *http.Request) {
 
-	var options []string
-	options = append(options, OPTIONS)
-	requestPath := r.URL.Path
+// ---------------------------------------------------------------------------------
+// Simple wrapper around a ResponseWriter
 
-	//loop through all Routes and find those that match
-	// the incoming request, regardless of type
-	for _, Route := range this.routes {
-
-		//check if Route pattern matches url
-		if !Route.regex.MatchString(requestPath) {
-			continue
-		}
-
-		//get submatches (params)
-		matches := Route.regex.FindStringSubmatch(requestPath)
-
-		//double check that the Route matches the URL pattern.
-		if len(matches[0]) != len(requestPath) {
-			continue
-		}
-
-		//append the options
-		options = append(options, Route.method)
-		if Route.method == GET {
-			options = append(options, HEAD)
-		}
-	}
-
-	sort.Strings(options)
-	optionsStr := strings.Join(options, ", ")
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Public", optionsStr)
-}
 
 //responseWriter is a wrapper for the http.ResponseWriter
 // to track if response was written to. It also allows us
@@ -276,7 +282,6 @@ func (this *responseWriter) Write(p []byte) (int, error) {
 	this.size = len(p)
 	this.started = true
 	this.writer.Header().Set("Content-Length", strconv.Itoa(this.size))
-	this.writer.Header().Set("Access-Control-Allow-Origin", DefaultAccessControlOrigin)
 	return this.writer.Write(p)
 }
 
@@ -287,7 +292,6 @@ func (this *responseWriter) WriteHeader(code int) {
 	this.started = true
 	this.writer.WriteHeader(code)
 	this.writer.Header().Set("Content-Length", "0")
-	this.writer.Header().Set("Access-Control-Allow-Origin", DefaultAccessControlOrigin)
 }
 
 
@@ -338,4 +342,85 @@ func ServeFormatted(w http.ResponseWriter, r *http.Request, v interface{}) {
 	}
 
 	return
+}
+
+
+// ---------------------------------------------------------------------------------
+// Authentication helper functions to enable user login,
+// secure cookies, etc
+
+type AuthHandler func (http.ResponseWriter, *http.Request) bool
+
+// Login will create a user's session using a secure cookie
+func Login(w http.ResponseWriter, r *http.Request, user string) {
+
+	// user id should not be null or blank
+	if user == "" {
+		return
+	}
+
+	// cookie expires in 2 weeks
+    exp := time.Now().Add(Config.CookieExp)
+
+    // generate cookie valid for 24 hours for user
+    value := authcookie.New(user, exp, Config.CookieSecret)
+
+    cookie := http.Cookie{
+        Name:   Config.CookieName,
+        Value:  value,
+        Path:   "/",
+        Domain: r.URL.Host,
+    }
+
+	// if not a session cookie
+	if Config.CookieMaxAge > 0 {
+		cookie.Expires = exp
+		cookie.MaxAge = Config.CookieMaxAge
+	} else {
+		cookie.MaxAge = -1
+	}
+
+    http.SetCookie(w, &cookie)
+	http.Redirect(w, r, Config.LoginSuccessRedirect, http.StatusSeeOther)
+}
+
+// Logout will terminate a user's session and redirect
+// to a login page.
+func Logout(w http.ResponseWriter, r *http.Request) {
+    cookie, err := r.Cookie(Config.CookieName)
+	if err == nil {
+		cookie.Value = "deleted"
+    	http.SetCookie(w, cookie)
+		http.Redirect(w, r, Config.LoginRedirect, http.StatusSeeOther)
+	}
+}
+
+// Authenticated determines if a user has an active session, and if so,
+// their username.
+func Authenticate(w http.ResponseWriter, r *http.Request) bool {
+	//look for the authcookie
+    cookie, err := r.Cookie("UID")
+
+	//if doesn't exist (or is malformed) redirect
+	//back to the login url
+	if err != nil {
+		return false
+	}
+
+    login, expires, err := authcookie.Parse(cookie.Value, Config.CookieSecret)
+
+	//if there was an error parsing the cookie, redirect
+	//back to the login url
+    if err != nil {
+		return false
+
+	//if the cookie is expired, redirect back to the
+	//login url
+    } else if time.Now().After(expires) {
+		return false
+    }
+
+	//add the userid to the url
+	r.URL.User = url.User(login)
+	return true
 }

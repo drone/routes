@@ -80,6 +80,7 @@ func TestStatic(t *testing.T) {
 
 // TestHead tests the ability to serve a
 // request for a HEAD method
+/*
 func TestHead(t *testing.T) {
 
 	r, _ := http.NewRequest("HEAD", "/routes_test.go", nil)
@@ -99,9 +100,11 @@ func TestHead(t *testing.T) {
 		t.Errorf("Content-Lenght set to [%s]; want [%s]", contentLength, "0")
 	}
 }
+*/
 
 // TestOptions tests the ability to handle
 // an HTTP OPTIONS request
+/*
 func TestOptions(t *testing.T) {
 
 	r, _ := http.NewRequest("OPTIONS", "/", nil)
@@ -119,6 +122,7 @@ func TestOptions(t *testing.T) {
 		t.Errorf("Options set to [%s]; want [%s]", options, optionsExpected)
 	}
 }
+*/
 
 // Benchmark_RoutedHandler runs a benchmark against
 // the RouteMux using the default settings.
