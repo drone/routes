@@ -1,7 +1,7 @@
 # routes.go
 a simple http routing API for the Go programming language
 
-    go get github.com/bradrydzewski/routes.go
+    go get github.com/bradrydzewski/routes
 
 this project combines the best of `web.go` and `pat.go`. It uses `pat.go`'s named url parameters (ie `:param`) and `web.go`'s regular expression groups for url matching and parameter extraction, which provides significant performance improvements.
 
@@ -11,7 +11,7 @@ this project combines the best of `web.go` and `pat.go`. It uses `pat.go`'s name
 
     import (
         "fmt"
-        "github.com/bradrydzewski/routes.go"
+        "github.com/bradrydzewski/routes"
         "net/http"
     )
 
