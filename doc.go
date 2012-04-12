@@ -23,6 +23,11 @@ Define a route with restful parameters in the path:
 The parameters are parsed from the URL, and appended to the Request URL's
 query parameters.
 
+More control over the route's parameter matching is possible by providing
+a custom regular expression:
+
+	mux.Get("/files/:file(.+)", handler)
+
 To start the web server, use the standard http.ListenAndServe
 function, and provide the route multiplexer:
 
