@@ -226,10 +226,8 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // ---------------------------------------------------------------------------------
 // Simple wrapper around a ResponseWriter
-
 
 //responseWriter is a wrapper for the http.ResponseWriter
 // to track if response was written to. It also allows us
@@ -265,11 +263,10 @@ func (this *responseWriter) WriteHeader(code int) {
 	this.writer.Header().Set("Content-Length", "0")
 }
 
-
 // ---------------------------------------------------------------------------------
 // Authentication helper functions to enable user authentication
 
-type AuthHandler func (http.ResponseWriter, *http.Request) bool
+type AuthHandler func(http.ResponseWriter, *http.Request) bool
 
 // DefaultAuthHandler will be applied to any route when the Secure() function
 // is invoked, as opposed to SecureFunc(), which accepts a custom AuthHandler.
@@ -281,12 +278,10 @@ var DefaultAuthHandler = func(w http.ResponseWriter, r *http.Request) bool {
 	return false
 }
 
-
 // ---------------------------------------------------------------------------------
 // Below are helper functions to replace boilerplate
 // code that serializes resources and writes to the
 // http response.
-
 
 // ServeJson replies to the request with a JSON
 // representation of resource v.
@@ -330,4 +325,3 @@ func ServeFormatted(w http.ResponseWriter, r *http.Request, v interface{}) {
 
 	return
 }
-
