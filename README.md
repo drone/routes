@@ -5,6 +5,9 @@ a simple http routing API for the Go programming language
 
 this project combines the best of `web.go` and `pat.go`. It uses `pat.go`'s named url parameters (ie `:param`) and `web.go`'s regular expression groups for url matching and parameter extraction, which provides significant performance improvements.
 
+for more information see:
+http://gopkgdoc.appspot.com/pkg/github.com/bradrydzewski/routes
+
 ## Getting Started
 
     package main
