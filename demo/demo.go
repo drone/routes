@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/bradrydzewski/routes.go"
+	"github.com/bradrydzewski/routes"
 	"net/http"
 )
 
