@@ -1,0 +1,4 @@
+language: golang
+script:
+  - go test
+  - go test -bench .

@@ -249,9 +249,8 @@ func (this *responseWriter) Header() http.Header {
 // Write writes the data to the connection as part of an HTTP reply,
 // and sets `started` to true
 func (this *responseWriter) Write(p []byte) (int, error) {
-	this.size = len(p)
+	this.size += len(p)
 	this.started = true
-	this.writer.Header().Set("Content-Length", strconv.Itoa(this.size))
 	return this.writer.Write(p)
 }
 
@@ -261,7 +260,6 @@ func (this *responseWriter) WriteHeader(code int) {
 	this.status = code
 	this.started = true
 	this.writer.WriteHeader(code)
-	this.writer.Header().Set("Content-Length", "0")
 }
 
 // ---------------------------------------------------------------------------------
@@ -293,6 +291,7 @@ func ServeJson(w http.ResponseWriter, v interface{}) {
 		return
 	}
 	w.Write(content)
+	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.Header().Set("Content-Type", applicationJson)
 }
 
@@ -317,7 +316,20 @@ func ServeXml(w http.ResponseWriter, v interface{}) {
 		return
 	}
 	w.Write(content)
+	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+}
+
+// ReadXml will parses the XML-encoded data in the http
+// Request object and stores the result in the value
+// pointed to by v.
+func ReadXml(r *http.Request, v interface{}) error {
+	body, err := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		return err
+	}
+	return xml.Unmarshal(body, v)
 }
 
 // ServeFormatted replies to the request with
