@@ -53,6 +53,27 @@ You can also create routes for static files:
 
 this will serve any files in `/static`, including files in subdirectories. For example `/static/logo.gif` or `/static/style/main.css`.
 
+## Filters / Middleware
+You can apply filters to routes, which is useful for enforcing security,
+redirects, etc.
+
+You can, for example, filter all request to enforce some type of security:
+
+    var FilterUser = func(w http.ResponseWriter, r *http.Request) {
+    	if r.URL.User == nil || r.URL.User.Username() != "admin" {
+    		http.Error(w, "", http.StatusUnauthorized)
+    	}
+    }
+
+    r.Filter(FilterUser)
+
+You can also apply filters only when certain REST URL Parameters exist:
+
+    r.Get("/:id", handler)
+    r.Filter("id", func(rw http.ResponseWriter, r *http.Request) {
+		...
+	})
+
 ## Helper Functions
 You can use helper functions for serializing to Json and Xml. I found myself constantly writing code to serialize, set content type, content length, etc. Feel free to use these functions to eliminate redundant code in your app.
 
