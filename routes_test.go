@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 )
@@ -16,6 +17,19 @@ var HandlerOk = func(w http.ResponseWriter, r *http.Request) {
 
 var HandlerErr = func(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "", http.StatusBadRequest)
+}
+
+var FilterUser = func(w http.ResponseWriter, r *http.Request) {
+	if r.URL.User == nil || r.URL.User.Username() != "admin" {
+		http.Error(w, "", http.StatusUnauthorized)
+	}
+}
+
+var FilterId = func(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get(":id")
+	if id == "admin" {
+		http.Error(w, "", http.StatusUnauthorized)
+	}
 }
 
 // TestAuthOk tests that an Auth handler will append the
@@ -56,7 +70,7 @@ func TestNotFound(t *testing.T) {
 	handler.ServeHTTP(w, r)
 
 	if w.Code != http.StatusNotFound {
-		t.Errorf("Code set to [%s]; want [%s]", w.Code, http.StatusNotFound)
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusNotFound)
 	}
 }
 
@@ -78,62 +92,86 @@ func TestStatic(t *testing.T) {
 	}
 }
 
-// TestHead tests the ability to serve a
-// request for a HEAD method
-/*
-func TestHead(t *testing.T) {
+// TestFilter tests the ability to apply middleware function
+// to filter all routes
+func TestFilter(t *testing.T) {
 
-	r, _ := http.NewRequest("HEAD", "/routes_test.go", nil)
-	w := httptest.NewRecorder()
-	pwd, _ := os.Getwd()
-
-	handler := new(RouteMux)
-	handler.Static("/", pwd)
-	handler.ServeHTTP(w, r)
-
-	if w.Body.String() != "" {
-		t.Errorf("a head method should have a zero-length body")
-	}
-
-	contentLength := w.Header().Get("Content-Length")
-	if contentLength != "0" {
-		t.Errorf("Content-Lenght set to [%s]; want [%s]", contentLength, "0")
-	}
-}
-*/
-
-// TestOptions tests the ability to handle
-// an HTTP OPTIONS request
-/*
-func TestOptions(t *testing.T) {
-
-	r, _ := http.NewRequest("OPTIONS", "/", nil)
+	r, _ := http.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
 	handler := new(RouteMux)
-	handler.Put("/", HandlerOk)
-	handler.Post("/", HandlerOk)
 	handler.Get("/", HandlerOk)
+	handler.Filter(FilterUser)
 	handler.ServeHTTP(w, r)
 
-	options := w.Header().Get("Public")
-	optionsExpected := "GET, HEAD, OPTIONS, POST, PUT"
-	if options != optionsExpected {
-		t.Errorf("Options set to [%s]; want [%s]", options, optionsExpected)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Did not apply Filter. Code set to [%v]; want [%v]", w.Code, http.StatusUnauthorized)
+	}
+
+	r, _ = http.NewRequest("GET", "/", nil)
+	r.URL.User = url.User("admin")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusOK)
 	}
 }
-*/
+
+// TestFilterParam tests the ability to apply middleware
+// function to filter all routes with specified parameter
+// in the REST url
+func TestFilterParam(t *testing.T) {
+
+	r, _ := http.NewRequest("GET", "/:id", nil)
+	w := httptest.NewRecorder()
+
+	// first test that the param filter does not trigger
+	handler := new(RouteMux)
+	handler.Get("/", HandlerOk)
+	handler.Get("/:id", HandlerOk)
+	handler.FilterParam("id", FilterId)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusOK)
+	}
+
+	// now test the param filter does trigger
+	r, _ = http.NewRequest("GET", "/admin", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Did not apply Param Filter. Code set to [%v]; want [%v]", w.Code, http.StatusUnauthorized)
+	}
+
+}
 
 // Benchmark_RoutedHandler runs a benchmark against
 // the RouteMux using the default settings.
 func Benchmark_RoutedHandler(b *testing.B) {
-
-	r, _ := http.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
 	handler := new(RouteMux)
 	handler.Get("/", HandlerOk)
 
 	for i := 0; i < b.N; i++ {
+		r, _ := http.NewRequest("GET", "/", nil)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+	}
+}
+
+// Benchmark_RoutedHandler runs a benchmark against
+// the RouteMux using the default settings with REST
+// URL params.
+func Benchmark_RoutedHandlerParams(b *testing.B) {
+
+	handler := new(RouteMux)
+	handler.Get("/:user", HandlerOk)
+
+	for i := 0; i < b.N; i++ {
+		r, _ := http.NewRequest("GET", "/admin", nil)
+		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 	}
 }
