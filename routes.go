@@ -4,15 +4,12 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -25,39 +22,71 @@ const (
 	POST    = "POST"
 	PUT     = "PUT"
 	TRACE   = "TRACE"
+)
 
-	// log format, modeled after http://wiki.nginx.org/HttpLogModule
-	LOG = `%s - - [%s] "%s %s %s" %d %d "%s" "%s"`
-
-	// commonly used mime types
+//commonly used mime-types
+const (
 	applicationJson = "application/json"
 	applicationXml  = "applicatoin/xml"
 	textXml         = "text/xml"
 )
 
-type Route struct {
+type route struct {
 	method  string
 	regex   *regexp.Regexp
 	params  map[int]string
 	handler http.HandlerFunc
-	auth    AuthHandler
 }
 
 type RouteMux struct {
-	routes  []*Route
-	Logging bool
-	Logger  *log.Logger
+	routes  []*route
+	filters []http.HandlerFunc
 }
 
 func New() *RouteMux {
-	routeMux := RouteMux{}
-	routeMux.Logging = true
-	routeMux.Logger = log.New(os.Stdout, "", 0)
-	return &routeMux
+	return &RouteMux{}
+}
+
+// Get adds a new Route for GET requests.
+func (m *RouteMux) Get(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(GET, pattern, handler)
+}
+
+// Put adds a new Route for PUT requests.
+func (m *RouteMux) Put(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(PUT, pattern, handler)
+}
+
+// Del adds a new Route for DELETE requests.
+func (m *RouteMux) Del(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(DELETE, pattern, handler)
+}
+
+// Patch adds a new Route for PATCH requests.
+func (m *RouteMux) Patch(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(PATCH, pattern, handler)
+}
+
+// Post adds a new Route for POST requests.
+func (m *RouteMux) Post(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(POST, pattern, handler)
+}
+
+// Adds a new Route for Static http requests. Serves
+// static files from the specified directory
+func (m *RouteMux) Static(pattern string, dir string) {
+	//append a regex to the param to match everything
+	// that comes after the prefix
+	pattern = pattern + "(.+)"
+	m.AddRoute(GET, pattern, func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Clean(r.URL.Path)
+		path = filepath.Join(dir, path)
+		http.ServeFile(w, r, path)
+	})
 }
 
 // Adds a new Route to the Handler
-func (this *RouteMux) AddRoute(method string, pattern string, handler http.HandlerFunc) *Route {
+func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerFunc) {
 
 	//split the url into sections
 	parts := strings.Split(pattern, "/")
@@ -88,76 +117,40 @@ func (this *RouteMux) AddRoute(method string, pattern string, handler http.Handl
 	if regexErr != nil {
 		//TODO add error handling here to avoid panic
 		panic(regexErr)
-		return nil
+		return
 	}
 
 	//now create the Route
-	route := &Route{}
+	route := &route{}
 	route.method = method
 	route.regex = regex
 	route.handler = handler
 	route.params = params
 
 	//and finally append to the list of Routes
-	this.routes = append(this.routes, route)
-
-	return route
+	m.routes = append(m.routes, route)
 }
 
-// Adds a new Route for GET requests
-func (this *RouteMux) Get(pattern string, handler http.HandlerFunc) *Route {
-	return this.AddRoute(GET, pattern, handler)
+// Filter adds the middleware filter.
+func (m *RouteMux) Filter(filter http.HandlerFunc) {
+	m.filters = append(m.filters, filter)
 }
 
-// Adds a new Route for PUT requests
-func (this *RouteMux) Put(pattern string, handler http.HandlerFunc) *Route {
-	return this.AddRoute(PUT, pattern, handler)
-}
+// FilterParam adds the middleware filter iff the REST URL parameter exists.
+func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
+	if !strings.HasPrefix(param,":") {
+		param = ":"+param
+	}
 
-// Adds a new Route for DELETE requests
-func (this *RouteMux) Del(pattern string, handler http.HandlerFunc) *Route {
-	return this.AddRoute(DELETE, pattern, handler)
-}
-
-// Adds a new Route for PATCH requests
-// See http://www.ietf.org/rfc/rfc5789.txt
-func (this *RouteMux) Patch(pattern string, handler http.HandlerFunc) *Route {
-	return this.AddRoute(PATCH, pattern, handler)
-}
-
-// Adds a new Route for POST requests
-func (this *RouteMux) Post(pattern string, handler http.HandlerFunc) *Route {
-	return this.AddRoute(POST, pattern, handler)
-}
-
-// Secures a route using the default AuthHandler
-func (this *Route) Secure() *Route {
-	this.auth = DefaultAuthHandler
-	return this
-}
-
-// SecureFunc a route using a custom AuthHandler function
-func (this *Route) SecureFunc(handler AuthHandler) *Route {
-	this.auth = handler
-	return this
-}
-
-// Adds a new Route for Static http requests. Serves
-// static files from the specified directory
-func (this *RouteMux) Static(pattern string, dir string) *Route {
-	//append a regex to the param to match everything
-	// that comes after the prefix
-	pattern = pattern + "(.+)"
-	return this.AddRoute(GET, pattern, func(w http.ResponseWriter, r *http.Request) {
-		path := filepath.Clean(r.URL.Path)
-		path = filepath.Join(dir, path)
-		http.ServeFile(w, r, path)
+	m.Filter(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Query().Get(param)
+		if len(p) > 0 { filter(w, r) }
 	})
 }
 
 // Required by http.Handler interface. This method is invoked by the
 // http server and will handle all page routing
-func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	requestPath := r.URL.Path
 
@@ -165,7 +158,7 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	w := &responseWriter{writer: rw}
 
 	//find a matching Route
-	for _, route := range this.routes {
+	for _, route := range m.routes {
 
 		//if the methods don't match, skip this handler
 		//i.e if request.Method is 'PUT' Route.Method must be 'PUT'
@@ -186,31 +179,28 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		//add url parameters to the query param map
-		values := r.URL.Query()
-		for i, match := range matches[1:] {
-			values.Add(route.params[i], match)
+		if len(route.params) > 0 {
+			//add url parameters to the query param map
+			values := r.URL.Query()
+			for i, match := range matches[1:] {
+				values.Add(route.params[i], match)
+			}
+
+			//reassemble query params and add to RawQuery
+			r.URL.RawQuery = url.Values(values).Encode() + "&" + r.URL.RawQuery
+			//r.URL.RawQuery = url.Values(values).Encode()
 		}
 
-		//reassemble query params and add to RawQuery
-		r.URL.RawQuery = url.Values(values).Encode()
-
-		//enfore security, if necessary
-		if route.auth != nil {
-			//autenticate the user
-			ok := route.auth(w, r)
-			//if the auth handler redirected the user
-			//or already wrote a response, we can just exit
+		//execute middleware filters
+		for _, filter := range m.filters {
+			filter(w, r)
 			if w.started {
 				return
-			} else if ok == false {
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			}
 		}
 
 		//Invoke the request handler
 		route.handler(w, r)
-
 		break
 	}
 
@@ -218,66 +208,42 @@ func (this *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if w.started == false {
 		http.NotFound(w, r)
 	}
-
-	//if logging is turned on
-	if this.Logging {
-		this.Logger.Printf(LOG, r.RemoteAddr, time.Now().String(), r.Method,
-			r.URL.Path, r.Proto, w.status, w.size,
-			r.Referer(), r.UserAgent())
-	}
 }
 
-// ---------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Simple wrapper around a ResponseWriter
 
-//responseWriter is a wrapper for the http.ResponseWriter
+// responseWriter is a wrapper for the http.ResponseWriter
 // to track if response was written to. It also allows us
 // to automatically set certain headers, such as Content-Type,
 // Access-Control-Allow-Origin, etc.
 type responseWriter struct {
-	writer  http.ResponseWriter // Writer
+	writer  http.ResponseWriter
 	started bool
-	size    int
 	status  int
 }
 
 // Header returns the header map that will be sent by WriteHeader.
-func (this *responseWriter) Header() http.Header {
-	return this.writer.Header()
+func (w *responseWriter) Header() http.Header {
+	return w.writer.Header()
 }
 
 // Write writes the data to the connection as part of an HTTP reply,
 // and sets `started` to true
-func (this *responseWriter) Write(p []byte) (int, error) {
-	this.size += len(p)
-	this.started = true
-	return this.writer.Write(p)
+func (w *responseWriter) Write(p []byte) (int, error) {
+	w.started = true
+	return w.writer.Write(p)
 }
 
 // WriteHeader sends an HTTP response header with status code,
 // and sets `started` to true
-func (this *responseWriter) WriteHeader(code int) {
-	this.status = code
-	this.started = true
-	this.writer.WriteHeader(code)
+func (w *responseWriter) WriteHeader(code int) {
+	w.status = code
+	w.started = true
+	w.writer.WriteHeader(code)
 }
 
-// ---------------------------------------------------------------------------------
-// Authentication helper functions to enable user authentication
-
-type AuthHandler func(http.ResponseWriter, *http.Request) bool
-
-// DefaultAuthHandler will be applied to any route when the Secure() function
-// is invoked, as opposed to SecureFunc(), which accepts a custom AuthHandler.
-//
-// By default, the DefaultAuthHandler will deny all requests. This value
-// should be replaced with a custom AuthHandler implementation, as this
-// is just a dummy function.
-var DefaultAuthHandler = func(w http.ResponseWriter, r *http.Request) bool {
-	return false
-}
-
-// ---------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // Below are helper functions to replace boilerplate
 // code that serializes resources and writes to the
 // http response.
@@ -290,9 +256,9 @@ func ServeJson(w http.ResponseWriter, v interface{}) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write(content)
 	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.Header().Set("Content-Type", applicationJson)
+	w.Write(content)
 }
 
 // ReadJson will parses the JSON-encoded data in the http
@@ -315,9 +281,9 @@ func ServeXml(w http.ResponseWriter, v interface{}) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write(content)
 	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
 	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+	w.Write(content)
 }
 
 // ReadXml will parses the XML-encoded data in the http

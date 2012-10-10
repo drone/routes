@@ -3,10 +3,10 @@ a simple http routing API for the Go programming language
 
     go get github.com/drone/routes
 
-this project combines the best of `web.go` and `pat.go`. It uses `pat.go`'s named url parameters (ie `:param`) and `web.go`'s regular expression groups for url matching and parameter extraction, which provides significant performance improvements.
-
 for more information see:
 http://gopkgdoc.appspot.com/pkg/github.com/bradrydzewski/routes
+
+[![](https://drone.io/drone/routes/status.png)](https://drone.io/drone/routes/latest)
 
 ## Getting Started
 
@@ -77,37 +77,3 @@ Helper function to serve Xml OR Json, depending on the value of the `Accept` hea
         routes.ServeFormatted(w, r, &mystruct)
     }
 
-## Security
-You can restrict access to routes by assigning an `AuthHandler` to a route.
-
-Here is an example using a custom `AuthHandler` per route. Image we are doing some type of Basic authentication:
-
-    func authHandler(w http.ResponseWriter, r *http.Request) bool {
-	    user := r.URL.User.Username()
-	    password := r.URL.User.Password()
-	    if user != "xxx" && password != "xxx" {
-            // if we wanted, we could do an http.Redirect here
-		    return false
-	    }
-	    return true
-    }
-
-    mux.Get("/:param", handler).SecureFunc(authHandler)
-
-If you plan to use the same `AuthHandler` to secure all of your routes, you may want to set the `DefaultAuthHandler`:
-
-    routes.DefaulAuthHandler = authHandler
-    mux.Get("/:param", handler).Secure()
-    mux.Get("/:param", handler).Secure()
-
-### OAuth2
-In the above examples, we implemented our own custom `AuthHandler`. Check out the [auth.go](https://github.com/bradrydzewski/auth.go) API which provides custom AuthHandlers for OAuth2 providers such as Google and Github.
-
-## Logging
-Logging is enabled by default, but can be disabled:
-
-    mux.Logging = false
-
-You can also specify your logger:
-
-    mux.Logger = log.New(os.Stdout, "", 0)
