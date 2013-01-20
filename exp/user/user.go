@@ -17,6 +17,9 @@ type User struct {
 
     FederatedIdentity string
     FederatedProvider string
+
+	// additional, custom Attributes
+	Attrs map[string]string
 }
 
 // Decode will create a user from a URL Query string.
@@ -26,17 +29,31 @@ func Decode(v string) *User {
 		return nil
 	}
 
+	attrs := map[string]string{}
+	for key, _ := range values {
+		attrs[key]=values.Get(key)
+	}
+
 	return &User {
 		Id    : values.Get("id"),
 		Name  : values.Get("name"),
 		Email : values.Get("email"),
 		Photo : values.Get("photo"),
+		Attrs : attrs,
 	}
 }
 
 // Encode will encode a user as a URL query string.
 func (u *User) Encode() string {
 	values := url.Values{}
+
+	// add custom attributes
+	if u.Attrs != nil {
+		for key, val := range u.Attrs {
+			values.Set(key, val)
+		}
+	}
+
 	values.Set("id", u.Id)
 	values.Set("name", u.Name)
 	values.Set("email", u.Email)
