@@ -70,7 +70,7 @@ You can, for example, filter all request to enforce some type of security:
 You can also apply filters only when certain REST URL Parameters exist:
 
     r.Get("/:id", handler)
-    r.Filter("id", func(rw http.ResponseWriter, r *http.Request) {
+    r.FilterParam("id", func(rw http.ResponseWriter, r *http.Request) {
 		...
 	})
 
