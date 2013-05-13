@@ -74,6 +74,13 @@ You can also apply filters only when certain REST URL Parameters exist:
 		...
 	})
 
+Or apply filters only when URL begins with a given path:
+
+    r.Get("/hello/:name", handler)
+    r.FilterPath("/hello", func(rw http.ResponseWriter, r *http.Request) {
+        ...
+    })
+
 ## Helper Functions
 You can use helper functions for serializing to Json and Xml. I found myself constantly writing code to serialize, set content type, content length, etc. Feel free to use these functions to eliminate redundant code in your app.
 
