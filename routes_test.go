@@ -171,6 +171,7 @@ func TestFilterPrefixPath(t *testing.T) {
 	// first test that the prefix path filter does not trigger
 	handler := new(RouteMux)
 	handler.Get("/prefix", HandlerOk)
+	handler.Get("/prefix/mypath", HandlerOk) //prefix is the base bath
 	handler.Get("/someotherprefix", HandlerErr)
 	handler.FilterPrefixPath("/prefix", FilterPrefixPath)
 	handler.ServeHTTP(w, r)
@@ -188,6 +189,17 @@ func TestFilterPrefixPath(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Did not apply Prefix path Filter. Code set to [%v]; want [%v]", w.Code, http.StatusOK)
+	}
+
+	// test ok for /prefix as base path
+	r, _ = http.NewRequest("GET", "/prefix/mypath", nil)
+	r.Header.Set("Token", "mytoken")
+	r.Header.Set("Secret", "mysecret")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Did not apply Prefix base path Filter. Code set to [%v]; want [%v]", w.Code, http.StatusOK)
 	}
 
 	//test when secret is incorrect
