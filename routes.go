@@ -99,7 +99,7 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 		if strings.HasPrefix(part, ":") {
 			expr := "([^/]+)"
 			//a user may choose to override the defult expression
-			// similar to expressjs: ‘/user/:id([0-9]+)’ 
+			// similar to expressjs: ‘/user/:id([0-9]+)’
 			if index := strings.Index(part, "("); index != -1 {
 				expr = part[index:]
 				part = part[:index]
@@ -138,13 +138,24 @@ func (m *RouteMux) Filter(filter http.HandlerFunc) {
 
 // FilterParam adds the middleware filter iff the REST URL parameter exists.
 func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
-	if !strings.HasPrefix(param,":") {
-		param = ":"+param
+	if !strings.HasPrefix(param, ":") {
+		param = ":" + param
 	}
 
 	m.Filter(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query().Get(param)
-		if len(p) > 0 { filter(w, r) }
+		if len(p) > 0 {
+			filter(w, r)
+		}
+	})
+}
+
+// FilterParam adds the middleware filter if the prefix path exists.
+func (m *RouteMux) FilterPrefixPath(path string, filter http.HandlerFunc) {
+	m.Filter(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, path) {
+			filter(w, r)
+		}
 	})
 }
 

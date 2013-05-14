@@ -32,6 +32,18 @@ var FilterId = func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+var FilterPrefixPath = func(w http.ResponseWriter, r *http.Request) {
+	token := r.Header.Get("Token")
+	secret := r.Header.Get("Secret")
+
+	if token == "mytoken" && secret == "mysecret" {
+		w.WriteHeader(http.StatusOK)
+
+	} else {
+		http.Error(w, "", http.StatusUnauthorized)
+	}
+}
+
 // TestAuthOk tests that an Auth handler will append the
 // username and password to to the request URL, and will
 // continue processing the request by invoking the handler.
@@ -144,6 +156,49 @@ func TestFilterParam(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Did not apply Param Filter. Code set to [%v]; want [%v]", w.Code, http.StatusUnauthorized)
+	}
+
+}
+
+// TestFilterParam tests the ability to apply middleware
+// function to filter all routes with specified parameter
+// in the REST url
+func TestFilterPrefixPath(t *testing.T) {
+
+	r, _ := http.NewRequest("GET", "/someotherprefix", nil)
+	w := httptest.NewRecorder()
+
+	// first test that the prefix path filter does not trigger
+	handler := new(RouteMux)
+	handler.Get("/prefix", HandlerOk)
+	handler.Get("/someotherprefix", HandlerErr)
+	handler.FilterPrefixPath("/prefix", FilterPrefixPath)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusBadRequest)
+	}
+
+	// now test the prefix path filter does trigger
+	r, _ = http.NewRequest("GET", "/prefix", nil)
+	r.Header.Set("Token", "mytoken")
+	r.Header.Set("Secret", "mysecret")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Did not apply Prefix path Filter. Code set to [%v]; want [%v]", w.Code, http.StatusOK)
+	}
+
+	//test when secret is incorrect
+	r, _ = http.NewRequest("GET", "/prefix", nil)
+	r.Header.Set("Token", "mytoken")
+	r.Header.Set("Secret", "incorrectsecret")
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("Did not apply Prefix path Filter. Code set to [%v]; want [%v]", w.Code, http.StatusUnauthorized)
 	}
 
 }
