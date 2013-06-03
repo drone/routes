@@ -183,7 +183,12 @@ func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			//add url parameters to the query param map
 			values := r.URL.Query()
 			for i, match := range matches[1:] {
-				values.Add(route.params[i], match)
+				value, err := url.QueryUnescape(match)
+				if err != nil {
+					values.Add(route.params[i], match)
+				} else {
+					values.Add(route.params[i], value)
+				}
 			}
 
 			//reassemble query params and add to RawQuery
