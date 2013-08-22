@@ -148,6 +148,36 @@ func TestFilterParam(t *testing.T) {
 
 }
 
+// TestFilterPath tests the ability to apply middleware
+// function to filter all routes beginning with specified
+// path in the REST url
+func TestFilterPath(t *testing.T) {
+
+	r, _ := http.NewRequest("GET", "/foo", nil)
+	w := httptest.NewRecorder()
+
+	// first test that the param filter does not trigger
+	handler := new(RouteMux)
+	handler.Get("/foo", HandlerOk)
+	handler.Get("/bar", HandlerOk)
+	handler.FilterPath("/bar", HandlerErr)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusOK)
+	}
+
+	// now test the path filter does trigger
+	r, _ = http.NewRequest("GET", "/bar", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Did not apply Path Filter. Code set to [%v]; want [%v]", w.Code, http.StatusBadRequest)
+	}
+
+}
+
 // Benchmark_RoutedHandler runs a benchmark against
 // the RouteMux using the default settings.
 func Benchmark_RoutedHandler(b *testing.B) {

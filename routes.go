@@ -138,13 +138,24 @@ func (m *RouteMux) Filter(filter http.HandlerFunc) {
 
 // FilterParam adds the middleware filter iff the REST URL parameter exists.
 func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
-	if !strings.HasPrefix(param,":") {
-		param = ":"+param
+	if !strings.HasPrefix(param, ":") {
+		param = ":" + param
 	}
 
 	m.Filter(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query().Get(param)
-		if len(p) > 0 { filter(w, r) }
+		if len(p) > 0 {
+			filter(w, r)
+		}
+	})
+}
+
+// FilterPath adds the middleware filter iff the REST URL begins with given path.
+func (m *RouteMux) FilterPath(path string, filter http.HandlerFunc) {
+	m.Filter(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, path) {
+			filter(w, r)
+		}
 	})
 }
 
