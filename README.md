@@ -46,6 +46,10 @@ You can specify custom regular expressions for routes:
 
     mux.Get("/files/:param(.+)", handler)
 
+You can specify a custom 404 not found route:
+
+    mux.NotFound(handler)
+
 You can also create routes for static files:
 
     pwd, _ := os.Getwd()

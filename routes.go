@@ -38,13 +38,20 @@ type route struct {
 	handler http.HandlerFunc
 }
 
+type notFoundHandler func(http.ResponseWriter, *http.Request)
+
 type RouteMux struct {
 	routes  []*route
 	filters []http.HandlerFunc
+	notFoundHandler notFoundHandler
 }
 
 func New() *RouteMux {
 	return &RouteMux{}
+}
+
+func (m *RouteMux) NotFound(handler notFoundHandler) {
+	m.notFoundHandler = handler
 }
 
 // Get adds a new Route for GET requests.
@@ -206,7 +213,13 @@ func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	//if no matches to url, throw a not found exception
 	if w.started == false {
-		http.NotFound(w, r)
+
+		if (m.notFoundHandler != nil) {
+			m.notFoundHandler(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+
 	}
 }
 
