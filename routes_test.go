@@ -32,6 +32,51 @@ var FilterId = func(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Test data used for ServeFormatted
+type testData struct {
+	SomeField string
+	Number    int
+	Test      float64
+}
+
+// contentTest describes a test for ServerFormatted
+type contentTest struct {
+	Header   string
+	Expected string
+}
+
+// The correct formatted data for use by TestContentFormatted
+var dataJSON = "{\n  \"SomeField\": \"Hi\",\n  \"Number\": 20,\n  \"Test\": 2.5\n}"
+var dataXML = "<testData><SomeField>Hi</SomeField><Number>20</Number><Test>2.5</Test></testData>"
+
+// Various test cases for TestContentFormatted
+var contentTester = []contentTest{
+	contentTest{
+		"",
+		dataJSON,
+	},
+	contentTest{
+		"application/json",
+		dataJSON,
+	},
+	contentTest{
+		"application/xml",
+		dataXML,
+	},
+	contentTest{
+		"text/xml",
+		dataXML,
+	},
+	contentTest{
+		"text/plain; q=0.5, text/html,\ntext/xml; q=0.8, text/x-c",
+		dataXML,
+	},
+	contentTest{
+		"text/html;\ntext/json;",
+		dataJSON,
+	},
+}
+
 // TestAuthOk tests that an Auth handler will append the
 // username and password to to the request URL, and will
 // continue processing the request by invoking the handler.
@@ -144,6 +189,28 @@ func TestFilterParam(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Did not apply Param Filter. Code set to [%v]; want [%v]", w.Code, http.StatusUnauthorized)
+	}
+
+}
+
+// TestContentFormatted tests the basic Accept-Header content matching.
+func TestContentFormatted(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	response, _ := http.NewRequest("GET", "localhost/does/not/matter", nil)
+
+	data := testData{
+		SomeField: "Hi",
+		Number:    20,
+		Test:      2.5,
+	}
+
+	for _, test := range contentTester {
+		response.Header.Set("Accept", test.Header)
+		ServeFormatted(recorder, response, data)
+		if recorder.Body.String() != test.Expected {
+			t.Fatalf("Sent %q header, expected %q. Got %q", test.Header, test.Expected, recorder.Body.String())
+		}
+		recorder.Body.Reset()
 	}
 
 }
