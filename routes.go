@@ -99,7 +99,7 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 		if strings.HasPrefix(part, ":") {
 			expr := "([^/]+)"
 			//a user may choose to override the defult expression
-			// similar to expressjs: ‘/user/:id([0-9]+)’ 
+			// similar to expressjs: ‘/user/:id([0-9]+)’
 			if index := strings.Index(part, "("); index != -1 {
 				expr = part[index:]
 				part = part[:index]
@@ -138,13 +138,15 @@ func (m *RouteMux) Filter(filter http.HandlerFunc) {
 
 // FilterParam adds the middleware filter iff the REST URL parameter exists.
 func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
-	if !strings.HasPrefix(param,":") {
-		param = ":"+param
+	if !strings.HasPrefix(param, ":") {
+		param = ":" + param
 	}
 
 	m.Filter(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query().Get(param)
-		if len(p) > 0 { filter(w, r) }
+		if len(p) > 0 {
+			filter(w, r)
+		}
 	})
 }
 
@@ -248,6 +250,14 @@ func (w *responseWriter) WriteHeader(code int) {
 // code that serializes resources and writes to the
 // http response.
 
+type contentSeralizer func(w http.ResponseWriter, v interface{})
+
+var contentHandler = map[string]contentSeralizer{
+	applicationJson: ServeJson,
+	applicationXml:  ServeXml,
+	textXml:         ServeXml,
+}
+
 // ServeJson replies to the request with a JSON
 // representation of resource v.
 func ServeJson(w http.ResponseWriter, v interface{}) {
@@ -304,14 +314,10 @@ func ReadXml(r *http.Request, v interface{}) error {
 // Accept header.
 func ServeFormatted(w http.ResponseWriter, r *http.Request, v interface{}) {
 	accept := r.Header.Get("Accept")
-	switch accept {
-	case applicationJson:
-		ServeJson(w, v)
-	case applicationXml, textXml:
-		ServeXml(w, v)
-	default:
-		ServeJson(w, v)
+	for header, handler := range contentHandler {
+		if strings.Contains(accept, header) {
+			handler(w, v)
+			return
+		}
 	}
-
-	return
 }
