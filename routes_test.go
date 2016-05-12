@@ -15,6 +15,11 @@ var HandlerOk = func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+var HandlerEmpty = func(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
+
 var HandlerErr = func(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "", http.StatusBadRequest)
 }
@@ -58,6 +63,33 @@ func TestRouteOk(t *testing.T) {
 		t.Errorf("url param set to [%s]; want [%s]", learnParam, "kungfu")
 	}
 }
+
+// TestDeleteMethod tests. Test compatibility 
+// to http spec with method names
+
+func TestRouteDeleteMethod(t *testing.T) {
+	r, _ := http.NewRequest("DELETE", "/person/anderson/thomas?learn=kungfu", nil)
+	w := httptest.NewRecorder()
+
+	handler := new(RouteMux)
+	handler.Delete("/person/:last/:first", HandlerEmpty)
+	handler.ServeHTTP(w, r)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("Basic check for DELETE event failed")
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
 
 // TestNotFound tests that a 404 code is returned in the
 // response if no route matches the request url.

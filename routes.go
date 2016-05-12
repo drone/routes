@@ -61,6 +61,10 @@ func (m *RouteMux) Put(pattern string, handler http.HandlerFunc) {
 func (m *RouteMux) Del(pattern string, handler http.HandlerFunc) {
 	m.AddRoute(DELETE, pattern, handler)
 }
+// Delete is same as Del but created for compatibility 
+func (m *RouteMux) Delete(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(DELETE, pattern, handler)
+}
 
 // Patch adds a new Route for PATCH requests.
 func (m *RouteMux) Patch(pattern string, handler http.HandlerFunc) {
