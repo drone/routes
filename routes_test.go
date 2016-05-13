@@ -81,16 +81,6 @@ func TestRouteDeleteMethod(t *testing.T) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
 // TestNotFound tests that a 404 code is returned in the
 // response if no route matches the request url.
 func TestNotFound(t *testing.T) {
