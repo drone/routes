@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"testing"
+	"encoding/json"
 )
 
 var HandlerOk = func(w http.ResponseWriter, r *http.Request) {
@@ -18,6 +19,27 @@ var HandlerOk = func(w http.ResponseWriter, r *http.Request) {
 var HandlerEmpty = func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
+
+var HandlerLargeResponseServeJSONEncode = func(w http.ResponseWriter, r *http.Request) {
+	i := []int{}
+	for j := 1; j <= 4000; j++ {
+		i = append(i, j)
+	}
+	w.WriteHeader(http.StatusOK)
+	ServeJSONEncode(w,r, i)
+}
+
+var HandlerLargeResponseServeJSON = func(w http.ResponseWriter, r *http.Request) {
+	i := []int{}
+	for j := 1; j <= 4000; j++ {
+		i = append(i, j)
+	}
+	w.WriteHeader(http.StatusOK)
+	ServeJson(w,i)
+}
+
+
+
 
 
 var HandlerErr = func(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +162,40 @@ func TestFilter(t *testing.T) {
 	}
 }
 
+//TestServeJsonEncode eager gzip encoding of JSON
+// whereever possible. 
+
+func TestServeJsonEncode(t *testing.T) {
+
+	r, _ := http.NewRequest("GET", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+
+	handler := new(RouteMux)
+	handler.Get("/", HandlerLargeResponseServeJSONEncode)
+	handler.ServeHTTP(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Code set to [%v]; want [%v]", w.Code, http.StatusOK)
+	}
+	i := []int{}
+	for j := 1; j <= 4000; j++ {
+		i = append(i, j)
+	}
+	content, _ :=json.Marshal(i)
+	if w.Header().Get("Content-Encoding") != "gzip" {
+		t.Errorf("Data is not encoded with gzip")	
+	}
+	body, _ := ioutil.ReadAll(w.Body)
+	if len(body) >= len(content) {
+		t.Errorf("Issues with gzip encoding content-length: %d and json length %d", len(body), len(content))
+	}
+		
+}
+
+
+
+
 // TestFilterParam tests the ability to apply middleware
 // function to filter all routes with specified parameter
 // in the REST url
@@ -198,12 +254,57 @@ func Benchmark_RoutedHandlerParams(b *testing.B) {
 	}
 }
 
+// Benchmark ServeJson for performance 
+func Benchmark_ServeJson(b *testing.B) {
+	r, _ := http.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	mux := http.NewServeMux()	
+	mux.HandleFunc("/", HandlerLargeResponseServeJSON)
+	
+	for i :=0; i < b.N; i++ {
+		mux.ServeHTTP(w, r)
+		
+	}	
+}
+
+// Benchmark ServeJsonEncode for performance 
+func Benchmark_ServeJsonEncode(b *testing.B) {
+	r, _ := http.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+
+	mux := http.NewServeMux()	
+	mux.HandleFunc("/", HandlerLargeResponseServeJSONEncode)
+	
+	for i :=0; i < b.N; i++ {
+		mux.ServeHTTP(w, r)
+		
+	}	
+}
+
+// Benchmark ServeJsonEncode for performance 
+func Benchmark_ServeJsonEncodeGzip(b *testing.B) {
+	r, _ := http.NewRequest("GET", "/", nil)
+	r.Header.Set("Accept-Encoding", "gzip")
+	w := httptest.NewRecorder()
+
+	mux := http.NewServeMux()	
+	mux.HandleFunc("/", HandlerLargeResponseServeJSONEncode)
+	
+	for i :=0; i < b.N; i++ {
+		mux.ServeHTTP(w, r)
+		
+	}	
+}
+
+
+
+
 // Benchmark_ServeMux runs a benchmark against
 // the ServeMux Go function. We use this to determine
 // performance impact of our library, when compared
 // to the out-of-the-box Mux provided by Go.
 func Benchmark_ServeMux(b *testing.B) {
-
 	r, _ := http.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 	mux := http.NewServeMux()
@@ -213,3 +314,7 @@ func Benchmark_ServeMux(b *testing.B) {
 		mux.ServeHTTP(w, r)
 	}
 }
+
+
+
+

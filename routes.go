@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"compress/flate"
+	"compress/gzip"
 )
 
 const (
@@ -23,6 +25,7 @@ const (
 	PUT     = "PUT"
 	TRACE   = "TRACE"
 )
+
 
 //commonly used mime-types
 const (
@@ -264,6 +267,36 @@ func ServeJson(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", applicationJson)
 	w.Write(content)
 }
+
+
+//ServeJSONEncode is eager JSON writer
+// with gzip encoding where possible
+func ServeJSONEncode(w http.ResponseWriter, r *http.Request, v interface{}) {
+	w.Header().Set("Content-Type", applicationJson)
+	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {	
+		err := json.NewEncoder(w).Encode(v)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		
+	} else {
+		w.Header().Set("Content-Encoding", "gzip")
+	 	gz, err := gzip.NewWriterLevel(w, flate.BestSpeed)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer gz.Close()
+		json.NewEncoder(gz).Encode(v)	
+	}
+	return
+}
+
+
+
+
+
+
 
 // ReadJson will parses the JSON-encoded data in the http
 // Request object and stores the result in the value
