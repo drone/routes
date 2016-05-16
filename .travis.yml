@@ -1,4 +1,4 @@
 language: go
-script: go test && go test -bench=.
+script: go get github.com/gorilla/pat && go get github.com/gorilla/mux && go test && go test -bench=.
 notifications:
   email: false
