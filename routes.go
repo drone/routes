@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
 	"io/ioutil"
@@ -10,8 +12,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"compress/flate"
-	"compress/gzip"
 )
 
 const (
@@ -26,6 +26,12 @@ const (
 	TRACE   = "TRACE"
 )
 
+type AcceptEncoding int
+
+const (
+	PassThrough AcceptEncoding = iota
+	Gzip
+)
 
 //commonly used mime-types
 const (
@@ -64,7 +70,8 @@ func (m *RouteMux) Put(pattern string, handler http.HandlerFunc) {
 func (m *RouteMux) Del(pattern string, handler http.HandlerFunc) {
 	m.AddRoute(DELETE, pattern, handler)
 }
-// Delete is same as Del but created for compatibility 
+
+// Delete is same as Del but created for compatibility
 func (m *RouteMux) Delete(pattern string, handler http.HandlerFunc) {
 	m.AddRoute(DELETE, pattern, handler)
 }
@@ -106,7 +113,7 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 		if strings.HasPrefix(part, ":") {
 			expr := "([^/]+)"
 			//a user may choose to override the defult expression
-			// similar to expressjs: ‘/user/:id([0-9]+)’ 
+			// similar to expressjs: ‘/user/:id([0-9]+)’
 			if index := strings.Index(part, "("); index != -1 {
 				expr = part[index:]
 				part = part[:index]
@@ -145,13 +152,15 @@ func (m *RouteMux) Filter(filter http.HandlerFunc) {
 
 // FilterParam adds the middleware filter iff the REST URL parameter exists.
 func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
-	if !strings.HasPrefix(param,":") {
-		param = ":"+param
+	if !strings.HasPrefix(param, ":") {
+		param = ":" + param
 	}
 
 	m.Filter(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query().Get(param)
-		if len(p) > 0 { filter(w, r) }
+		if len(p) > 0 {
+			filter(w, r)
+		}
 	})
 }
 
@@ -163,7 +172,8 @@ func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	//wrap the response writer, in our custom interface
 	w := &responseWriter{writer: rw}
-
+	// Set the trailer headers which will follow status code
+	w.Header().Set("Trailer", "Content-Encoding")
 	//find a matching Route
 	for _, route := range m.routes {
 
@@ -268,35 +278,36 @@ func ServeJson(w http.ResponseWriter, v interface{}) {
 	w.Write(content)
 }
 
-
 //ServeJSONEncode is eager JSON writer
 // with gzip encoding where possible
 func ServeJSONEncode(w http.ResponseWriter, r *http.Request, v interface{}) {
 	w.Header().Set("Content-Type", applicationJson)
-	if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {	
+	var pipe AcceptEncoding
+	// Accept-Encoding has gzip
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		pipe = Gzip
+	} else {
+		pipe = PassThrough
+	}
+
+	switch pipe {
+	case PassThrough:
 		err := json.NewEncoder(w).Encode(v)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-		
-	} else {
+	case Gzip:
 		w.Header().Set("Content-Encoding", "gzip")
-	 	gz, err := gzip.NewWriterLevel(w, flate.BestSpeed)
+		gz, err := gzip.NewWriterLevel(w, flate.DefaultCompression)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer gz.Close()
-		json.NewEncoder(gz).Encode(v)	
+		json.NewEncoder(gz).Encode(v)
 	}
 	return
 }
-
-
-
-
-
-
 
 // ReadJson will parses the JSON-encoded data in the http
 // Request object and stores the result in the value
