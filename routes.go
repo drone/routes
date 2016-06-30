@@ -131,7 +131,6 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 	if regexErr != nil {
 		//TODO add error handling here to avoid panic
 		panic(regexErr)
-		return
 	}
 
 	//now create the Route
@@ -166,14 +165,12 @@ func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
 
 // Required by http.Handler interface. This method is invoked by the
 // http server and will handle all page routing
-func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (m *RouteMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	requestPath := r.URL.Path
-
-	//wrap the response writer, in our custom interface
-	w := &responseWriter{writer: rw}
+	started := false
 	// Set the trailer headers which will follow status code
-	w.Header().Set("Trailer", "Content-Encoding")
+	w.Header().Set("Trailer", "Content-Encoding, Content-Length, Content-Type")
 	//find a matching Route
 	for _, route := range m.routes {
 
@@ -211,53 +208,21 @@ func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		//execute middleware filters
 		for _, filter := range m.filters {
 			filter(w, r)
-			if w.started {
+			if started {
 				return
 			}
 		}
 
 		//Invoke the request handler
 		route.handler(w, r)
+		started = true
 		break
 	}
 
 	//if no matches to url, throw a not found exception
-	if w.started == false {
+	if started == false {
 		http.NotFound(w, r)
 	}
-}
-
-// -----------------------------------------------------------------------------
-// Simple wrapper around a ResponseWriter
-
-// responseWriter is a wrapper for the http.ResponseWriter
-// to track if response was written to. It also allows us
-// to automatically set certain headers, such as Content-Type,
-// Access-Control-Allow-Origin, etc.
-type responseWriter struct {
-	writer  http.ResponseWriter
-	started bool
-	status  int
-}
-
-// Header returns the header map that will be sent by WriteHeader.
-func (w *responseWriter) Header() http.Header {
-	return w.writer.Header()
-}
-
-// Write writes the data to the connection as part of an HTTP reply,
-// and sets `started` to true
-func (w *responseWriter) Write(p []byte) (int, error) {
-	w.started = true
-	return w.writer.Write(p)
-}
-
-// WriteHeader sends an HTTP response header with status code,
-// and sets `started` to true
-func (w *responseWriter) WriteHeader(code int) {
-	w.status = code
-	w.started = true
-	w.writer.WriteHeader(code)
 }
 
 // -----------------------------------------------------------------------------
@@ -268,14 +233,12 @@ func (w *responseWriter) WriteHeader(code int) {
 // ServeJson replies to the request with a JSON
 // representation of resource v.
 func ServeJson(w http.ResponseWriter, v interface{}) {
-	content, err := json.MarshalIndent(v, "", "  ")
+	w.Header().Set("Content-Type", applicationJson)
+	err := json.NewEncoder(w).Encode(v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
-	w.Header().Set("Content-Type", applicationJson)
-	w.Write(content)
+	return
 }
 
 //ServeJSONEncode is eager JSON writer
