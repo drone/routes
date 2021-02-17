@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/drone/routes"
-	gorilla "code.google.com/p/gorilla/mux"
-	"github.com/bmizerany/pat"
+	gorilla "github.com/gorilla/mux"
+	"github.com/gorilla/pat"
+	"github.com/tokopedia/routes"
 )
 
 func HandlerOk(w http.ResponseWriter, r *http.Request) {
@@ -35,8 +35,6 @@ func Benchmark_Routes(b *testing.B) {
 // default settings.
 func Benchmark_Pat(b *testing.B) {
 
-
-
 	m := pat.New()
 	m.Get("/person/:last/:first", http.HandlerFunc(HandlerOk))
 
@@ -50,7 +48,6 @@ func Benchmark_Pat(b *testing.B) {
 // Benchmark_Gorilla runs a benchmark against the Gorilla Mux using
 // the default settings.
 func Benchmark_GorillaHandler(b *testing.B) {
-
 
 	handler := gorilla.NewRouter()
 	handler.HandleFunc("/person/{last}/{first}", HandlerOk)
