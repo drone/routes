@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"compress/flate"
+	"compress/gzip"
 	"encoding/json"
 	"encoding/xml"
 	"io/ioutil"
@@ -22,6 +24,13 @@ const (
 	POST    = "POST"
 	PUT     = "PUT"
 	TRACE   = "TRACE"
+)
+
+type AcceptEncoding int
+
+const (
+	PassThrough AcceptEncoding = iota
+	Gzip
 )
 
 //commonly used mime-types
@@ -62,6 +71,11 @@ func (m *RouteMux) Del(pattern string, handler http.HandlerFunc) {
 	m.AddRoute(DELETE, pattern, handler)
 }
 
+// Delete is same as Del but created for compatibility
+func (m *RouteMux) Delete(pattern string, handler http.HandlerFunc) {
+	m.AddRoute(DELETE, pattern, handler)
+}
+
 // Patch adds a new Route for PATCH requests.
 func (m *RouteMux) Patch(pattern string, handler http.HandlerFunc) {
 	m.AddRoute(PATCH, pattern, handler)
@@ -99,7 +113,7 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 		if strings.HasPrefix(part, ":") {
 			expr := "([^/]+)"
 			//a user may choose to override the defult expression
-			// similar to expressjs: ‘/user/:id([0-9]+)’ 
+			// similar to expressjs: ‘/user/:id([0-9]+)’
 			if index := strings.Index(part, "("); index != -1 {
 				expr = part[index:]
 				part = part[:index]
@@ -117,7 +131,6 @@ func (m *RouteMux) AddRoute(method string, pattern string, handler http.HandlerF
 	if regexErr != nil {
 		//TODO add error handling here to avoid panic
 		panic(regexErr)
-		return
 	}
 
 	//now create the Route
@@ -138,25 +151,26 @@ func (m *RouteMux) Filter(filter http.HandlerFunc) {
 
 // FilterParam adds the middleware filter iff the REST URL parameter exists.
 func (m *RouteMux) FilterParam(param string, filter http.HandlerFunc) {
-	if !strings.HasPrefix(param,":") {
-		param = ":"+param
+	if !strings.HasPrefix(param, ":") {
+		param = ":" + param
 	}
 
 	m.Filter(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Query().Get(param)
-		if len(p) > 0 { filter(w, r) }
+		if len(p) > 0 {
+			filter(w, r)
+		}
 	})
 }
 
 // Required by http.Handler interface. This method is invoked by the
 // http server and will handle all page routing
-func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (m *RouteMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	requestPath := r.URL.Path
-
-	//wrap the response writer, in our custom interface
-	w := &responseWriter{writer: rw}
-
+	started := false
+	// Set the trailer headers which will follow status code
+	w.Header().Set("Trailer", "Content-Encoding, Content-Length, Content-Type")
 	//find a matching Route
 	for _, route := range m.routes {
 
@@ -194,53 +208,21 @@ func (m *RouteMux) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		//execute middleware filters
 		for _, filter := range m.filters {
 			filter(w, r)
-			if w.started {
+			if started {
 				return
 			}
 		}
 
 		//Invoke the request handler
 		route.handler(w, r)
+		started = true
 		break
 	}
 
 	//if no matches to url, throw a not found exception
-	if w.started == false {
+	if started == false {
 		http.NotFound(w, r)
 	}
-}
-
-// -----------------------------------------------------------------------------
-// Simple wrapper around a ResponseWriter
-
-// responseWriter is a wrapper for the http.ResponseWriter
-// to track if response was written to. It also allows us
-// to automatically set certain headers, such as Content-Type,
-// Access-Control-Allow-Origin, etc.
-type responseWriter struct {
-	writer  http.ResponseWriter
-	started bool
-	status  int
-}
-
-// Header returns the header map that will be sent by WriteHeader.
-func (w *responseWriter) Header() http.Header {
-	return w.writer.Header()
-}
-
-// Write writes the data to the connection as part of an HTTP reply,
-// and sets `started` to true
-func (w *responseWriter) Write(p []byte) (int, error) {
-	w.started = true
-	return w.writer.Write(p)
-}
-
-// WriteHeader sends an HTTP response header with status code,
-// and sets `started` to true
-func (w *responseWriter) WriteHeader(code int) {
-	w.status = code
-	w.started = true
-	w.writer.WriteHeader(code)
 }
 
 // -----------------------------------------------------------------------------
@@ -251,14 +233,43 @@ func (w *responseWriter) WriteHeader(code int) {
 // ServeJson replies to the request with a JSON
 // representation of resource v.
 func ServeJson(w http.ResponseWriter, v interface{}) {
-	content, err := json.MarshalIndent(v, "", "  ")
+	w.Header().Set("Content-Type", applicationJson)
+	err := json.NewEncoder(w).Encode(v)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	w.Header().Set("Content-Length", strconv.Itoa(len(content)))
+	return
+}
+
+//ServeJSONEncode is eager JSON writer
+// with gzip encoding where possible
+func ServeJSONEncode(w http.ResponseWriter, r *http.Request, v interface{}) {
 	w.Header().Set("Content-Type", applicationJson)
-	w.Write(content)
+	var pipe AcceptEncoding
+	// Accept-Encoding has gzip
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		pipe = Gzip
+	} else {
+		pipe = PassThrough
+	}
+
+	switch pipe {
+	case PassThrough:
+		err := json.NewEncoder(w).Encode(v)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	case Gzip:
+		w.Header().Set("Content-Encoding", "gzip")
+		gz, err := gzip.NewWriterLevel(w, flate.DefaultCompression)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer gz.Close()
+		json.NewEncoder(gz).Encode(v)
+	}
+	return
 }
 
 // ReadJson will parses the JSON-encoded data in the http

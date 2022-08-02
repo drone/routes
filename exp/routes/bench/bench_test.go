@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/drone/routes/exp/routes"
-	gorilla "code.google.com/p/gorilla/mux"
-	"github.com/bmizerany/pat"
+	gorilla "github.com/gorilla/mux"
+	"github.com/gorilla/pat"
+	"github.com/tokopedia/routes/exp/routes"
 )
 
 func HandlerOk(w http.ResponseWriter, r *http.Request) {

@@ -1,7 +1,7 @@
 # routes.go
 a simple http routing API for the Go programming language
 
-    go get github.com/drone/routes
+    go get github.com/tokopedia/routes
 
 for more information see:
 http://gopkgdoc.appspot.com/pkg/github.com/bradrydzewski/routes
@@ -14,7 +14,7 @@ http://gopkgdoc.appspot.com/pkg/github.com/bradrydzewski/routes
 
     import (
         "fmt"
-        "github.com/drone/routes"
+        "github.com/tokopedia/routes"
         "net/http"
     )
 
